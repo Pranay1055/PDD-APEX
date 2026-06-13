@@ -1,0 +1,43 @@
+{
+  "expo": {
+    "name": "APEX",
+    "slug": "apex",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "icon": "./assets/icon.png",
+    "userInterfaceStyle": "dark",
+    "newArchEnabled": true,
+    "splash": {
+      "image": "./assets/splash-icon.png",
+      "resizeMode": "contain",
+      "backgroundColor": "#0a0a0a"
+    },
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.akashkrish10.apex"
+    },
+    "android": {
+      "package": "com.akashkrish10.apex",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#0a0a0a"
+      },
+      "edgeToEdgeEnabled": true,
+      "predictiveBackGestureEnabled": false,
+      "softwareKeyboardLayoutMode": "pan"
+    },
+    "web": {
+      "favicon": "./assets/favicon.png"
+    },
+    "plugins": [
+      "expo-font",
+      "expo-video"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "102d7158-cb15-4a32-a3a6-70d6bb23fa34"
+      }
+    },
+    "owner": "akashkrish10"
+  }
+}

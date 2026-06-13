@@ -1,0 +1,25 @@
+node_modules/
+build/
+dist/
+coverage/
+.DS_Store
+*.log
+.env*
+!.env.example
+*.key
+*.pem
+*.p12
+*.cert
+*.crt
+.nyc_output/
+
+# Binary installer
+node-installer.msi
+
+# Python cache
+__pycache__/
+*.pyc
+
+# Temporary office files
+~$*
+
