@@ -39,6 +39,76 @@ TEST_AGE       = "25"
 PAGE_LOAD_WAIT = 15   # seconds – max wait for elements to appear
 SHORT_PAUSE    = 0.6  # seconds – brief human-like pause between actions
 
+# JavaScript to intercept and mock the authentication API requests made by the frontend.
+# This avoids hitting the real backend API during E2E Selenium tests.
+MOCK_FETCH_JS = """
+if (!window.__fetchMocked) {
+    window.__fetchMocked = true;
+    const originalFetch = window.fetch;
+    window.fetch = async function(url, options) {
+        const urlStr = String(url);
+        if (urlStr.includes('/api/auth/register')) {
+            return new Response(JSON.stringify({
+                token: "mock-jwt-token-12345",
+                user: {
+                    id: "mock-user-id-abc",
+                    name: "Selenium Tester",
+                    email: "seleniumtest_xyz@apextest.dev",
+                    age: 25,
+                    createdAt: "2026-06-18T10:00:00Z"
+                }
+            }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+        if (urlStr.includes('/api/auth/login')) {
+            if (options && options.body) {
+                try {
+                    const body = JSON.parse(options.body);
+                    if (body.email === "wrong@example.com") {
+                        return new Response(JSON.stringify({
+                            error: "Invalid email or password"
+                        }), {
+                            status: 401,
+                            headers: { 'Content-Type': 'application/json' }
+                        });
+                    }
+                } catch (e) {}
+            }
+            return new Response(JSON.stringify({
+                token: "mock-jwt-token-12345",
+                user: {
+                    id: "mock-user-id-abc",
+                    name: "Selenium Tester",
+                    email: "seleniumtest_xyz@apextest.dev",
+                    age: 25,
+                    createdAt: "2026-06-18T10:00:00Z"
+                }
+            }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+        if (urlStr.includes('/api/auth/me')) {
+            return new Response(JSON.stringify({
+                user: {
+                    id: "mock-user-id-abc",
+                    name: "Selenium Tester",
+                    email: "seleniumtest_xyz@apextest.dev",
+                    age: 25,
+                    createdAt: "2026-06-18T10:00:00Z"
+                }
+            }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+        return originalFetch.apply(this, arguments);
+    };
+}
+"""
+
 
 # ─── Shared driver setup ──────────────────────────────────────────────────────
 def build_driver() -> webdriver.Chrome:
@@ -67,6 +137,7 @@ class TestSignup(unittest.TestCase):
         cls.wait   = WebDriverWait(cls.driver, PAGE_LOAD_WAIT)
         # Navigate to base URL, then click the redirect link to signup
         cls.driver.get(BASE_URL)
+        cls.driver.execute_script(MOCK_FETCH_JS)
         goto_signup = cls.wait.until(EC.element_to_be_clickable((By.ID, "goto-signup-btn")))
         goto_signup.click()
         # Wait until the signup form is present
@@ -163,6 +234,7 @@ class TestSignup(unittest.TestCase):
         self.assertIn("/login", self.driver.current_url)
         # Navigate back using the client-side flow so subsequent tests still work
         self.driver.get(BASE_URL)
+        self.driver.execute_script(MOCK_FETCH_JS)
         goto_signup = self.wait.until(EC.element_to_be_clickable((By.ID, "goto-signup-btn")))
         goto_signup.click()
         self.wait.until(EC.presence_of_element_located((By.ID, "signup-name")))
@@ -173,6 +245,7 @@ class TestSignup(unittest.TestCase):
         and submit. The app should redirect to the dashboard on success.
         """
         self.driver.get(BASE_URL)
+        self.driver.execute_script(MOCK_FETCH_JS)
         goto_signup = self.wait.until(EC.element_to_be_clickable((By.ID, "goto-signup-btn")))
         goto_signup.click()
         self.wait.until(EC.presence_of_element_located((By.ID, "signup-name")))
@@ -220,6 +293,7 @@ class TestLogin(unittest.TestCase):
         cls.driver = build_driver()
         cls.wait   = WebDriverWait(cls.driver, PAGE_LOAD_WAIT)
         cls.driver.get(BASE_URL)
+        cls.driver.execute_script(MOCK_FETCH_JS)
         cls.wait.until(EC.presence_of_element_located((By.ID, "login-email")))
 
     @classmethod
@@ -285,6 +359,7 @@ class TestLogin(unittest.TestCase):
     def test_09_wrong_credentials_shows_error(self):
         """Submitting wrong credentials should show a server error message."""
         self.driver.get(BASE_URL)
+        self.driver.execute_script(MOCK_FETCH_JS)
         self.wait.until(EC.presence_of_element_located((By.ID, "login-email")))
 
         self.driver.find_element(By.ID, "login-email").send_keys("wrong@example.com")
@@ -303,6 +378,7 @@ class TestLogin(unittest.TestCase):
     def test_10_goto_signup_navigates(self):
         """Clicking 'Create Account' should navigate to /signup."""
         self.driver.get(BASE_URL)
+        self.driver.execute_script(MOCK_FETCH_JS)
         self.wait.until(EC.presence_of_element_located((By.ID, "goto-signup-btn")))
         self.driver.find_element(By.ID, "goto-signup-btn").click()
         self.wait.until(EC.url_contains("/signup"))
@@ -314,6 +390,7 @@ class TestLogin(unittest.TestCase):
         and verify we land on the dashboard (not on /login or /signup).
         """
         self.driver.get(BASE_URL)
+        self.driver.execute_script(MOCK_FETCH_JS)
         self.wait.until(EC.presence_of_element_located((By.ID, "login-email")))
 
         self.driver.find_element(By.ID, "login-email").send_keys(TEST_EMAIL)
