@@ -65,7 +65,10 @@ class TestSignup(unittest.TestCase):
     def setUpClass(cls):
         cls.driver = build_driver()
         cls.wait   = WebDriverWait(cls.driver, PAGE_LOAD_WAIT)
-        cls.driver.get(SIGNUP_URL)
+        # Navigate to base URL, then click the redirect link to signup
+        cls.driver.get(BASE_URL)
+        goto_signup = cls.wait.until(EC.element_to_be_clickable((By.ID, "goto-signup-btn")))
+        goto_signup.click()
         # Wait until the signup form is present
         cls.wait.until(EC.presence_of_element_located((By.ID, "signup-name")))
 
@@ -158,8 +161,10 @@ class TestSignup(unittest.TestCase):
         self.driver.find_element(By.ID, "goto-login-btn").click()
         self.wait.until(EC.url_contains("/login"))
         self.assertIn("/login", self.driver.current_url)
-        # Navigate back so subsequent tests still work
-        self.driver.get(SIGNUP_URL)
+        # Navigate back using the client-side flow so subsequent tests still work
+        self.driver.get(BASE_URL)
+        goto_signup = self.wait.until(EC.element_to_be_clickable((By.ID, "goto-signup-btn")))
+        goto_signup.click()
         self.wait.until(EC.presence_of_element_located((By.ID, "signup-name")))
 
     def test_14_full_signup_flow_creates_account(self):
@@ -167,7 +172,9 @@ class TestSignup(unittest.TestCase):
         End-to-end: fill in all signup fields with the unique test credentials
         and submit. The app should redirect to the dashboard on success.
         """
-        self.driver.get(SIGNUP_URL)
+        self.driver.get(BASE_URL)
+        goto_signup = self.wait.until(EC.element_to_be_clickable((By.ID, "goto-signup-btn")))
+        goto_signup.click()
         self.wait.until(EC.presence_of_element_located((By.ID, "signup-name")))
 
         # Fill out the form
@@ -212,7 +219,7 @@ class TestLogin(unittest.TestCase):
     def setUpClass(cls):
         cls.driver = build_driver()
         cls.wait   = WebDriverWait(cls.driver, PAGE_LOAD_WAIT)
-        cls.driver.get(LOGIN_URL)
+        cls.driver.get(BASE_URL)
         cls.wait.until(EC.presence_of_element_located((By.ID, "login-email")))
 
     @classmethod
@@ -277,7 +284,7 @@ class TestLogin(unittest.TestCase):
 
     def test_09_wrong_credentials_shows_error(self):
         """Submitting wrong credentials should show a server error message."""
-        self.driver.get(LOGIN_URL)
+        self.driver.get(BASE_URL)
         self.wait.until(EC.presence_of_element_located((By.ID, "login-email")))
 
         self.driver.find_element(By.ID, "login-email").send_keys("wrong@example.com")
@@ -295,7 +302,7 @@ class TestLogin(unittest.TestCase):
 
     def test_10_goto_signup_navigates(self):
         """Clicking 'Create Account' should navigate to /signup."""
-        self.driver.get(LOGIN_URL)
+        self.driver.get(BASE_URL)
         self.wait.until(EC.presence_of_element_located((By.ID, "goto-signup-btn")))
         self.driver.find_element(By.ID, "goto-signup-btn").click()
         self.wait.until(EC.url_contains("/signup"))
@@ -306,7 +313,7 @@ class TestLogin(unittest.TestCase):
         End-to-end: log in with the account created during TestSignup
         and verify we land on the dashboard (not on /login or /signup).
         """
-        self.driver.get(LOGIN_URL)
+        self.driver.get(BASE_URL)
         self.wait.until(EC.presence_of_element_located((By.ID, "login-email")))
 
         self.driver.find_element(By.ID, "login-email").send_keys(TEST_EMAIL)
