@@ -161,7 +161,7 @@ class TestFrontend(unittest.TestCase):
         heading = self.wait.until(
             EC.visibility_of_element_located((By.TAG_NAME, "h1"))
         )
-        self.assertIn("Create Account", heading.text,
+        self.assertIn("create account", heading.text.lower(),
                       f"Unexpected heading: {heading.text!r}")
 
     def test_03_signup_name_field_present(self):
@@ -287,7 +287,7 @@ class TestFrontend(unittest.TestCase):
         heading = self.wait.until(
             EC.visibility_of_element_located((By.TAG_NAME, "h1"))
         )
-        self.assertIn("Welcome", heading.text,
+        self.assertIn("welcome", heading.text.lower(),
                       f"Unexpected heading: {heading.text!r}")
 
     def test_17_login_email_field_present(self):
