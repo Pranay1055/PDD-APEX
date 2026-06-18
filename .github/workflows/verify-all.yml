@@ -177,12 +177,12 @@ jobs:
 
 
   # ═══════════════════════════════════════════════════════════════════════════
-  # JOB 2 – SELENIUM AUTH TESTS (real browser, live Vercel URL)
+  # JOB 2 – frontend TESTS (real browser, live Vercel URL)
   # Runs the actual test_auth_selenium.py against the deployed app.
   # Chrome + ChromeDriver are pre-installed on ubuntu-latest runners.
   # ═══════════════════════════════════════════════════════════════════════════
   selenium-tests:
-    name: 🧪 Selenium Auth Tests (Signup + Login)
+    name: 🧪 Frontend Tests (Signup + Login)
     runs-on: ubuntu-latest
     needs: verify-deployment
 
@@ -198,7 +198,7 @@ jobs:
       - name: Install Python Dependencies
         run: |
           python -m pip install --upgrade pip
-          pip install selenium openpyxl
+          pip install selenium openpyxl pytest
 
       - name: Install Chrome & ChromeDriver
         run: |
@@ -210,23 +210,15 @@ jobs:
           # Put chromedriver on PATH
           which chromedriver && echo "chromedriver found"
 
-      - name: 🧪 Run Selenium Auth Tests – Signup Flow
+      - name: 🧪 Run Frontend E2E Tests
         run: |
-          echo "::group::Selenium – TestSignup"
-          python -m pytest apex/tests/test_auth_selenium.py::TestSignup \
-            -v --tb=short --no-header \
-            2>&1 | tee selenium_signup.log
+          echo "::group::Frontend E2E Tests"
+          python -m pytest apex/tests/test_auth_selenium.py::TestFrontend \
+            -v --tb=short --no-header --color=no \
+            2>&1 | tee selenium_frontend.log
           echo "::endgroup::"
 
-      - name: 🧪 Run Selenium Auth Tests – Login Flow
-        run: |
-          echo "::group::Selenium – TestLogin"
-          python -m pytest apex/tests/test_auth_selenium.py::TestLogin \
-            -v --tb=short --no-header \
-            2>&1 | tee selenium_login.log
-          echo "::endgroup::"
-
-      - name: 📊 Publish Selenium Test Results
+      - name: 📊 Publish Frontend Test Results
         if: always()
         run: |
           python - <<'EOF'
@@ -240,7 +232,7 @@ jobs:
               try:
                   with open(path, encoding="utf-8", errors="replace") as f:
                       for line in f:
-                          # Match lines like: "apex/tests/test_auth_selenium.py::TestSignup::test_01 PASSED   [ 8%]"
+                          # Match lines like: "apex/tests/test_auth_selenium.py::TestFrontend::test_01 PASSED   [ 3%]"
                           m = re.match(r".+::(test_\S+)\s+(PASSED|FAILED)", line)
                           if m:
                               name, status = m.group(1), m.group(2)
@@ -255,38 +247,25 @@ jobs:
                   pass
               return results, passed, failed, duration
 
-          signup_res, sp, sf, sd = parse_pytest_log("selenium_signup.log")
-          login_res,  lp, lf, ld = parse_pytest_log("selenium_login.log")
+          frontend_res, fp, ff, fd = parse_pytest_log("selenium_frontend.log")
 
           md = []
-          md.append("# 🧪 Selenium Auth Tests – Live Vercel Deployment\n")
+          md.append("# 🧪 Frontend Tests – Live Vercel Deployment\n")
           md.append(f"> **Target:** ${{ env.VERCEL_URL }}  ")
           md.append(f"> **Ran at:** {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC\n")
 
-          md.append("## 📝 Signup Tests (TestSignup)")
-          md.append(f"**{sp} passed · {sf} failed · {sd}**\n")
+          md.append("## 🌐 Frontend Tests")
+          md.append(f"**{fp} passed · {ff} failed · {fd}**\n")
           md.append("| Test | Status |")
           md.append("|---|---|")
-          for name, status in signup_res:
+          for name, status in frontend_res:
               icon = "✅" if status == "PASSED" else "❌"
               md.append(f"| `{name}` | {icon} {status} |")
 
-          md.append("\n## 🔑 Login Tests (TestLogin)")
-          md.append(f"**{lp} passed · {lf} failed · {ld}**\n")
-          md.append("| Test | Status |")
-          md.append("|---|---|")
-          for name, status in login_res:
-              icon = "✅" if status == "PASSED" else "❌"
-              md.append(f"| `{name}` | {icon} {status} |")
-
-          total_p = sp + lp
-          total_f = sf + lf
-          md.append(f"\n## 📊 Overall Selenium Results")
+          md.append(f"\n## 📊 Overall Frontend Results")
           md.append(f"| Suite | Passed | Failed |")
           md.append(f"|---|---|---|")
-          md.append(f"| Signup | ✅ {sp} | ❌ {sf} |")
-          md.append(f"| Login  | ✅ {lp} | ❌ {lf} |")
-          md.append(f"| **Total** | ✅ **{total_p}** | ❌ **{total_f}** |")
+          md.append(f"| Frontend | ✅ {fp} | ❌ {ff} |")
 
           text = "\n".join(md)
           sf_env = os.environ.get("GITHUB_STEP_SUMMARY")
@@ -296,14 +275,12 @@ jobs:
           print(text)
           EOF
 
-      - name: 📤 Upload Selenium Test Logs
+      - name: 📤 Upload Frontend Test Logs
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: Selenium-Auth-Test-Logs
-          path: |
-            selenium_signup.log
-            selenium_login.log
+          name: Selenium-Frontend-Test-Logs
+          path: selenium_frontend.log
 
 
   # ═══════════════════════════════════════════════════════════════════════════
@@ -428,7 +405,7 @@ jobs:
       - name: 📥 Download Selenium Test Logs
         uses: actions/download-artifact@v4
         with:
-          name: Selenium-Auth-Test-Logs
+          name: Selenium-Frontend-Test-Logs
           path: selenium-logs/
 
       - name: 📊 Generate Combined Summary Report
@@ -461,25 +438,17 @@ jobs:
                   pass
               return results, passed, failed, duration
 
-          signup_res, sp, sf, sd = parse_pytest_log("selenium-logs/selenium_signup.log")
-          login_res,  lp, lf, ld = parse_pytest_log("selenium-logs/selenium_login.log")
+          frontend_res, fp, ff, fd = parse_pytest_log("selenium-logs/selenium_frontend.log")
 
           block = ["\n---\n"]
-          block.append("## 🧪 Selenium Auth Tests – Live Vercel Deployment\n")
+          block.append("## 🧪 Frontend Tests – Live Vercel Deployment\n")
           block.append(f"> **Target:** {os.environ.get('VERCEL_URL', 'https://apex-sigma-eight.vercel.app')}\n")
 
-          block.append("### 📝 Signup Tests")
-          block.append(f"**{sp} passed · {sf} failed · {sd}**\n")
+          block.append("### 🌐 Frontend Tests")
+          block.append(f"**{fp} passed · {ff} failed · {fd}**\n")
           block.append("| Test | Status |")
           block.append("|---|---|")
-          for name, status in signup_res:
-              block.append(f"| `{name}` | {'✅' if status=='PASSED' else '❌'} {status} |")
-
-          block.append("\n### 🔑 Login Tests")
-          block.append(f"**{lp} passed · {lf} failed · {ld}**\n")
-          block.append("| Test | Status |")
-          block.append("|---|---|")
-          for name, status in login_res:
+          for name, status in frontend_res:
               block.append(f"| `{name}` | {'✅' if status=='PASSED' else '❌'} {status} |")
 
           text = "\n".join(block)
@@ -517,22 +486,16 @@ jobs:
                   pass
               return passed, failed
 
-          sp, sf = count_results("selenium-logs/selenium_signup.log")
-          lp, lf = count_results("selenium-logs/selenium_login.log")
+          fp, ff = count_results("selenium-logs/selenium_frontend.log")
 
-          total_passed = sp + lp
-          total_failed = sf + lf
-
-          print(f"Selenium Signup : {sp} passed, {sf} failed")
-          print(f"Selenium Login  : {lp} passed, {lf} failed")
+          print(f"TOTAL FRONTEND  : {fp} passed, {ff} failed")
           print(f"─────────────────────────────────────────")
-          print(f"TOTAL SELENIUM  : {total_passed} passed, {total_failed} failed")
 
-          if total_failed > 0:
-              print(f"\n❌ {total_failed} Selenium test(s) FAILED — review logs above.")
+          if ff > 0:
+              print(f"\n❌ {ff} Frontend test(s) FAILED — review logs above.")
               exit(1)
           else:
-              print(f"\n✅ All {total_passed} Selenium tests passed.")
+              print(f"\n✅ All {fp} Frontend tests passed.")
           EOF
 
       - name: 📤 Upload Combined Summary Report
