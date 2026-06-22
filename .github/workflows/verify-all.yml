@@ -491,15 +491,13 @@ jobs:
           print(f"   Started at  : {datetime.datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S')} UTC")
           print("-" * 60)
 
-          # Shared state
+          # Shared state – use a dict so threads can mutate without nonlocal
           results_lock  = threading.Lock()
           response_times = []
-          error_count    = 0
-          success_count  = 0
+          counters = {"success": 0, "errors": 0}
           stop_event     = threading.Event()
 
           def worker():
-              nonlocal error_count, success_count
               session = requests.Session()
               while not stop_event.is_set():
                   try:
@@ -509,12 +507,12 @@ jobs:
                       with results_lock:
                           response_times.append(elapsed_ms)
                           if r.status_code < 400:
-                              success_count += 1
+                              counters["success"] += 1
                           else:
-                              error_count += 1
+                              counters["errors"] += 1
                   except Exception:
                       with results_lock:
-                          error_count += 1
+                          counters["errors"] += 1
 
           # Wake up the server first (Render free tier spins down)
           print("⏳ Warming up server (Render cold start)...")
@@ -543,6 +541,8 @@ jobs:
           elapsed_total = time.time() - test_start
 
           # ── Compute metrics ────────────────────────────────────────────────
+          success_count = counters["success"]
+          error_count   = counters["errors"]
           total_reqs = success_count + error_count
           rps        = round(total_reqs / elapsed_total, 2)
           error_rate = round((error_count / total_reqs * 100) if total_reqs > 0 else 0, 2)
