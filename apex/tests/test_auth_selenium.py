@@ -104,6 +104,29 @@ if (!window.__fetchMocked) {
                 headers: { 'Content-Type': 'application/json' }
             });
         }
+        if (urlStr.includes('/api/parse-meal')) {
+            return new Response(JSON.stringify({
+                name: "Banana",
+                calories: 105,
+                protein: 1.3,
+                carbs: 27,
+                fat: 0.3,
+                mealType: "Snack"
+            }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
+        if (urlStr.includes('/api/recommendations')) {
+            return new Response(JSON.stringify({
+                dietRecommendations: "Eat more bananas for snacks.",
+                workoutAdjustments: "Increase sets for chest exercises.",
+                progressAnalysis: "Your weight has stabilized."
+            }), {
+                status: 200,
+                headers: { 'Content-Type': 'application/json' }
+            });
+        }
         return originalFetch.apply(this, arguments);
     };
 }
@@ -2963,69 +2986,188 @@ class TestFrontend(unittest.TestCase):
         field = self.driver.find_element(By.ID, "login-email")
         self.assertEqual(field.get_attribute("type"), "email")
 
-    def test_290_all_headings_have_text_content(self):
-        """All heading elements should have text content."""
-        self.driver.get(BASE_URL)
-        self.driver.execute_script(MOCK_FETCH_JS)
-        self.wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-        for tag in ["h1", "h2", "h3"]:
-            headings = self.driver.find_elements(By.TAG_NAME, tag)
-            for h in headings:
-                if h.is_displayed():
-                    self.assertGreater(len(h.text.strip()), 0,
-                                       f"Empty {tag} heading found")
+    def _helper_login_and_navigate(self, route_label):
+        """Helper to log in and navigate to a route path client-side."""
+        # Check if nav is present. If it's already present, we are logged in!
+        try:
+            self.driver.find_element(By.XPATH, "//nav")
+        except Exception:
+            # Not logged in! Clear cookies and localStorage to guarantee unauthenticated state
+            self.driver.delete_all_cookies()
+            self.driver.get(BASE_URL)
+            self.driver.execute_script(MOCK_FETCH_JS)
+            try:
+                self.driver.execute_script("localStorage.clear(); sessionStorage.clear();")
+            except Exception:
+                pass
+            self.driver.get(BASE_URL)
+            self.driver.execute_script(MOCK_FETCH_JS)
+            
+            # Wait for login page to load client-side
+            email_field = self.wait.until(EC.presence_of_element_located((By.ID, "login-email")))
+            email_field.clear()
+            email_field.send_keys(TEST_EMAIL)
+            
+            pw_field = self.driver.find_element(By.ID, "login-password")
+            pw_field.clear()
+            pw_field.send_keys(TEST_PASSWORD)
+            
+            self.driver.find_element(By.ID, "login-submit-btn").click()
+            
+            # Wait until navbar is loaded, indicating successful login redirect
+            self.wait.until(EC.presence_of_element_located((By.XPATH, "//nav")))
+            time.sleep(1.0)
+            
+        # Navigate using the NavBar to avoid page reload and preserve MOCK_FETCH_JS
+        nav_link = self.wait.until(EC.element_to_be_clickable((By.XPATH, f"//nav//a[contains(., '{route_label}')]")))
+        nav_link.click()
+        time.sleep(1.5)
 
-    def test_291_page_body_text_length_significant(self):
-        """Page body should have a significant amount of text."""
-        self.driver.get(BASE_URL)
-        self.driver.execute_script(MOCK_FETCH_JS)
-        self.wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-        body_text = self.driver.find_element(By.TAG_NAME, "body").text
-        self.assertGreater(len(body_text), 20, "Page body text is too short")
+    def test_290_bmi_calculator_flow(self):
+        """Test BMI Calculator input, calculation, and gauge update."""
+        self._helper_login_and_navigate("BMI")
+        
+        # Verify heading
+        h2 = self.wait.until(EC.presence_of_element_located((By.XPATH, "//h2[contains(text(), 'BMI CALCULATOR')]")))
+        self.assertTrue(h2.is_displayed())
+        
+        # Input name, age, height, weight
+        name_input = self.wait.until(EC.presence_of_element_located((By.XPATH, "//label[contains(text(), 'NAME')]/following-sibling::input")))
+        name_input.clear()
+        name_input.send_keys("Test User")
+        
+        age_input = self.driver.find_element(By.XPATH, "//label[contains(text(), 'AGE')]/following-sibling::input")
+        age_input.clear()
+        age_input.send_keys("25")
+        
+        height_input = self.driver.find_element(By.XPATH, "//label[contains(., 'HT')]/following-sibling::input")
+        height_input.clear()
+        height_input.send_keys("180")
+        
+        weight_input = self.driver.find_element(By.XPATH, "//label[contains(., 'WT')]/following-sibling::input")
+        weight_input.clear()
+        weight_input.send_keys("75")
+        
+        # Click MALE button
+        male_btn = self.driver.find_element(By.XPATH, "//button[contains(text(), 'MALE')]")
+        male_btn.click()
+        time.sleep(SHORT_PAUSE)
+        
+        # Click calculate button
+        calc_btn = self.driver.find_element(By.XPATH, "//button[contains(text(), 'CALCULATE RESULTS')]")
+        calc_btn.click()
+        time.sleep(1.5)
+        
+        # Verify BMI result count (75 / 1.8^2 = 23.1)
+        counter = self.driver.find_element(By.XPATH, "//*[contains(text(), '23.') or contains(text(), '24.')]")
+        self.assertIsNotNone(counter)
 
-    def test_292_signup_page_body_text_significant(self):
-        """Signup page body should have meaningful text."""
-        self.driver.get(BASE_URL)
-        self.driver.execute_script(MOCK_FETCH_JS)
-        goto_signup = self.wait.until(EC.element_to_be_clickable((By.ID, "goto-signup-btn")))
-        goto_signup.click()
-        self.wait.until(EC.presence_of_element_located((By.ID, "signup-name")))
-        body_text = self.driver.find_element(By.TAG_NAME, "body").text
-        self.assertGreater(len(body_text), 20, "Signup page has very little text")
+    def test_291_weight_tracker_flow(self):
+        """Test logging a weight entry and checking if it shows in history."""
+        self._helper_login_and_navigate("Weight")
+        
+        # Verify heading
+        h2 = self.wait.until(EC.presence_of_element_located((By.XPATH, "//h2[contains(text(), 'WEIGHT TRACKER')]")))
+        self.assertTrue(h2.is_displayed())
+        
+        # Date input is inputs[0], Weight input is inputs[1] or placeholder 75.5
+        weight_input = self.wait.until(EC.presence_of_element_located((By.XPATH, "//input[@placeholder='75.5']")))
+        weight_input.clear()
+        weight_input.send_keys("78.5")
+        time.sleep(SHORT_PAUSE)
+        
+        # Click SAVE LOG
+        save_btn = self.driver.find_element(By.XPATH, "//button[contains(text(), 'SAVE LOG')]")
+        save_btn.click()
+        time.sleep(1.5)
+        
+        # Verify log entry is added to history list
+        log_entry = self.driver.find_element(By.XPATH, "//*[contains(text(), '78.5')]")
+        self.assertTrue(log_entry.is_displayed())
 
-    def test_293_app_renders_correctly_after_token_expiry_simulation(self):
-        """App should handle expired token gracefully."""
-        self.driver.get(BASE_URL)
-        self.driver.execute_script("localStorage.setItem('token', 'expired-token-xyz')")
-        self.driver.execute_script(MOCK_FETCH_JS)
-        time.sleep(2)
-        body = self.driver.find_element(By.TAG_NAME, "body")
-        self.assertGreater(len(body.text.strip()), 0, "App broke with expired token")
+    def test_292_diet_planner_flow(self):
+        """Test typing a meal description and clicking log to trigger AI parsing and addition."""
+        self._helper_login_and_navigate("Diet")
+        
+        # Verify heading
+        h2 = self.wait.until(EC.presence_of_element_located((By.XPATH, "//h2[contains(text(), 'DIET PLANNING')]")))
+        self.assertTrue(h2.is_displayed())
+        
+        # Find textarea for cognitive logging
+        textarea = self.wait.until(EC.presence_of_element_located((By.TAG_NAME, "textarea")))
+        textarea.clear()
+        textarea.send_keys("1 banana and a cup of Greek yogurt")
+        time.sleep(SHORT_PAUSE)
+        
+        # Click LOG MEAL
+        log_btn = self.driver.find_element(By.XPATH, "//button[contains(text(), 'LOG MEAL') or contains(text(), 'ANALYZING')]")
+        log_btn.click()
+        time.sleep(2.0)
+        
+        # Verify meal (Banana) appears in the meals grid
+        meal_card = self.wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'Banana')]")))
+        self.assertTrue(meal_card.is_displayed())
 
-    def test_294_signup_page_renders_same_on_reload(self):
-        """Signup page should render consistently on reload."""
-        self.driver.get(f"{BASE_URL}/signup")
-        self.driver.execute_script(MOCK_FETCH_JS)
-        time.sleep(2)
-        text1 = self.driver.find_element(By.TAG_NAME, "body").text
-        self.driver.refresh()
-        time.sleep(2)
-        text2 = self.driver.find_element(By.TAG_NAME, "body").text
-        # Both should have content
-        self.assertGreater(len(text1), 0)
-        self.assertGreater(len(text2), 0)
+    def test_293_workout_planner_flow(self):
+        """Test adding exercises to a session, updating sets/reps, and finishing workout."""
+        self._helper_login_and_navigate("Workout")
+        
+        # Verify heading
+        h2 = self.wait.until(EC.presence_of_element_located((By.XPATH, "//h2[contains(text(), 'WORKOUT PLANNER')]")))
+        self.assertTrue(h2.is_displayed())
+        
+        # Find and click the plus button on the first exercise in the library
+        plus_buttons = self.driver.find_elements(By.XPATH, "//div[contains(@class, 'bg-dark-surface')]//button")
+        self.assertGreater(len(plus_buttons), 0)
+        plus_buttons[0].click()
+        
+        # Check that exercise is added to "TODAY'S WORKOUT"
+        moves_count = self.wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(., '1 MOVES')]")))
+        self.assertTrue(moves_count.is_displayed())
+        
+        # Click FINISH WORKOUT
+        finish_btn = self.driver.find_element(By.XPATH, "//button[contains(text(), 'FINISH WORKOUT')]")
+        finish_btn.click()
+        
+        # Check confirmation message "WORKOUT SAVED SUCCESSFULLY"
+        saved_msg = self.wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(., 'SAVED SUCCESSFULLY')]")))
+        self.assertTrue(saved_msg.is_displayed())
 
-    def test_295_login_page_renders_same_on_reload(self):
-        """Login page should render consistently on reload."""
-        self.driver.get(BASE_URL)
-        self.driver.execute_script(MOCK_FETCH_JS)
-        self.wait.until(EC.presence_of_element_located((By.TAG_NAME, "body")))
-        text1 = self.driver.find_element(By.TAG_NAME, "body").text
-        self.driver.refresh()
-        time.sleep(2)
-        text2 = self.driver.find_element(By.TAG_NAME, "body").text
-        self.assertGreater(len(text1), 0)
-        self.assertGreater(len(text2), 0)
+    def test_294_ai_coach_flow(self):
+        """Test generating AI insights recommendations."""
+        self._helper_login_and_navigate("AI Coach")
+        
+        # Verify heading
+        h2 = self.wait.until(EC.presence_of_element_located((By.XPATH, "//h2[contains(text(), 'AI COACH')]")))
+        self.assertTrue(h2.is_displayed())
+        
+        # Click GENERATE INSIGHTS button
+        gen_btn = self.driver.find_element(By.XPATH, "//button[contains(text(), 'GENERATE INSIGHTS') or contains(text(), 'ANALYZING')]")
+        gen_btn.click()
+        time.sleep(2.0)
+        
+        # Verify the recommendations categories are displayed
+        diet_mods = self.wait.until(EC.presence_of_element_located((By.XPATH, "//*[contains(text(), 'DIET MODS')]")))
+        self.assertTrue(diet_mods.is_displayed())
+        
+        # Verify content from mock fetch
+        content = self.driver.find_element(By.XPATH, "//*[contains(text(), 'Eat more bananas')]")
+        self.assertTrue(content.is_displayed())
+
+    def test_295_dashboard_metrics_flow(self):
+        """Test Command Center dashboard rendering stats."""
+        self._helper_login_and_navigate("Dashboard")
+        
+        # Verify heading
+        h2 = self.wait.until(EC.presence_of_element_located((By.XPATH, "//h2[contains(text(), 'COMMAND CENTER')]")))
+        self.assertTrue(h2.is_displayed())
+        
+        # Verify stats cards are present
+        workouts_card = self.driver.find_element(By.XPATH, "//*[contains(text(), 'WORKOUTS')]")
+        self.assertTrue(workouts_card.is_displayed())
+        
+        bmi_card = self.driver.find_element(By.XPATH, "//*[contains(text(), 'CURRENT BMI')]")
+        self.assertTrue(bmi_card.is_displayed())
 
     def test_296_page_has_no_empty_divs_as_content(self):
         """Page should not rely on empty divs as main content."""
